@@ -129,11 +129,10 @@ def getCt(series_uid):
     return Ct(series_uid)
 
 
-@raw_cache.memoize(typed=True)
 def getCtRawCandidate(series_uid, center_xyz, width_irc):
     ct = getCt(series_uid)
     ct_chunk, center_irc = ct.getRawCandidate(center_xyz, width_irc)
-    return ct_chunk, center_irc
+    return [ct_chunk, center_irc]
 
 
 class LunaDataset(Dataset):

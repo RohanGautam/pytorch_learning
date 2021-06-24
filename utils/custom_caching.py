@@ -9,7 +9,7 @@ import gzip
 
 
 class GzipDisk(Disk):
-    def store(self, value, read, key):
+    def store(self, value, read, key=None):
         if type(value) is BytesType:
             if read:
                 value = value.read()
