@@ -8,10 +8,13 @@ import re
 import SimpleITK as sitk
 import numpy as np
 import copy
+import torch
 from utils import XyzTuple, xyz2irc
+from custom_caching import getCache
 
 from torch.utils.data import Dataset
 
+raw_cache = getCache('part2ch10_raw')
 
 CandidateInfoTuple = namedtuple(
     'CandidateInfoTuple',
@@ -126,6 +129,13 @@ def getCt(series_uid):
     return Ct(series_uid)
 
 
+@raw_cache.memoize(typed=True)
+def getCtRawCandidate(series_uid, center_xyz, width_irc):
+    ct = getCt(series_uid)
+    ct_chunk, center_irc = ct.getRawCandidate(center_xyz, width_irc)
+    return ct_chunk, center_irc
+
+
 class LunaDataset(Dataset):
     def __init__(self, val_stride=0, is_validation_bool=None, series_uid=None):
         # copy so as to not affect the cache
@@ -145,3 +155,34 @@ class LunaDataset(Dataset):
             # used to clear/ return trianing images where that isn't needed
             del self.candidate_info_list[::val_stride]
             assert self.candidate_info_list
+
+    def __len__(self):
+        return len(self.candidateInfo_list)
+
+    def __getitem__(self, ndx):
+        candidateInfo_tup = self.candidateInfo_list[ndx]
+        width_irc = (32, 48, 48)
+
+        candidate_a, center_irc = getCtRawCandidate(
+            candidateInfo_tup.series_uid,
+            candidateInfo_tup.center_xyz,
+            width_irc,
+        )
+
+        candidate_t = torch.from_numpy(candidate_a)
+        candidate_t = candidate_t.to(torch.float32)
+        candidate_t = candidate_t.unsqueeze(0)
+
+        pos_t = torch.tensor([
+            not candidateInfo_tup.isNodule_bool,
+            candidateInfo_tup.isNodule_bool
+        ],
+            dtype=torch.long,
+        )
+
+        return (
+            candidate_t,
+            pos_t,
+            candidateInfo_tup.series_uid,
+            torch.tensor(center_irc),
+        )
