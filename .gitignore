@@ -1,2 +1,3 @@
 .vscode
 data_unversioned
+__pycache__
