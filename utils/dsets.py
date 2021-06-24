@@ -89,39 +89,39 @@ class Ct:
         self.vxSize = XyzTuple(*ct_mhd.GetSpacing())
         self.direction_a = np.array(ct_mhd.GetDirection()).reshape(3, 3)
 
-        def getRawCandidate(self, center_xyz, width_irc):
-            center_irc = xyz2irc(
-                center_xyz,
-                self.origin_xyz,
-                self.vxSize_xyz,
-                self.direction_a,
-            )
+    def getRawCandidate(self, center_xyz, width_irc):
+        center_irc = xyz2irc(
+            center_xyz,
+            self.origin_xyz,
+            self.vxSize,
+            self.direction_a,
+        )
 
-            slice_list = []
-            for axis, center_val in enumerate(center_irc):
-                start_ndx = int(round(center_val - width_irc[axis]/2))
-                end_ndx = int(start_ndx + width_irc[axis])
+        slice_list = []
+        for axis, center_val in enumerate(center_irc):
+            start_ndx = int(round(center_val - width_irc[axis]/2))
+            end_ndx = int(start_ndx + width_irc[axis])
 
-                assert center_val >= 0 and center_val < self.hu_a.shape[axis], repr(
-                    [self.series_uid, center_xyz, self.origin_xyz, self.vxSize_xyz, center_irc, axis])
+            assert center_val >= 0 and center_val < self.hu_a.shape[axis], repr(
+                [self.series_uid, center_xyz, self.origin_xyz, self.vxSize_xyz, center_irc, axis])
 
-                if start_ndx < 0:
-                    # log.warning("Crop outside of CT array: {} {}, center:{} shape:{} width:{}".format(
-                    #     self.series_uid, center_xyz, center_irc, self.hu_a.shape, width_irc))
-                    start_ndx = 0
-                    end_ndx = int(width_irc[axis])
+            if start_ndx < 0:
+                # log.warning("Crop outside of CT array: {} {}, center:{} shape:{} width:{}".format(
+                #     self.series_uid, center_xyz, center_irc, self.hu_a.shape, width_irc))
+                start_ndx = 0
+                end_ndx = int(width_irc[axis])
 
-                if end_ndx > self.hu_a.shape[axis]:
-                    # log.warning("Crop outside of CT array: {} {}, center:{} shape:{} width:{}".format(
-                    #     self.series_uid, center_xyz, center_irc, self.hu_a.shape, width_irc))
-                    end_ndx = self.hu_a.shape[axis]
-                    start_ndx = int(self.hu_a.shape[axis] - width_irc[axis])
+            if end_ndx > self.hu_a.shape[axis]:
+                # log.warning("Crop outside of CT array: {} {}, center:{} shape:{} width:{}".format(
+                #     self.series_uid, center_xyz, center_irc, self.hu_a.shape, width_irc))
+                end_ndx = self.hu_a.shape[axis]
+                start_ndx = int(self.hu_a.shape[axis] - width_irc[axis])
 
-                slice_list.append(slice(start_ndx, end_ndx))
+            slice_list.append(slice(start_ndx, end_ndx))
 
-            ct_chunk = self.hu_a[tuple(slice_list)]
+        ct_chunk = self.hu_a[tuple(slice_list)]
 
-            return ct_chunk, center_irc
+        return ct_chunk, center_irc
 
 
 @functools.lru_cache(1, typed=True)
@@ -142,8 +142,8 @@ class LunaDataset(Dataset):
         self.candidate_info_list = copy.copy(getCandidateInfo())
         # an option to examine only one series uid
         if series_uid:
-            self.candidate_info_list = list(self.candidate_info_list.filter(
-                lambda x: x.series_uid == series_uid))
+            self.candidate_info_list = [
+                x for x in self.candidate_info_list if x.series_uid == series_uid]
 
         # if true, will return a validation set
         if is_validation_bool:
@@ -160,7 +160,7 @@ class LunaDataset(Dataset):
         return len(self.candidateInfo_list)
 
     def __getitem__(self, ndx):
-        candidateInfo_tup = self.candidateInfo_list[ndx]
+        candidateInfo_tup = self.candidate_info_list[ndx]
         width_irc = (32, 48, 48)
 
         candidate_a, center_irc = getCtRawCandidate(
