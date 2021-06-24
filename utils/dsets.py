@@ -9,8 +9,8 @@ import SimpleITK as sitk
 import numpy as np
 import copy
 import torch
-from utils import XyzTuple, xyz2irc
-from custom_caching import getCache
+from utils.conversions import XyzTuple, xyz2irc
+from utils.custom_caching import getCache
 
 from torch.utils.data import Dataset
 

@@ -1,5 +1,7 @@
 from diskcache import Disk, FanoutCache
-from diskcache.core import BytesType, MODE_BINARY, BytesIO
+from cassandra.cqltypes import BytesType
+from diskcache.core import MODE_BINARY, io
+from io import BytesIO
 import gzip
 
 # the class we'll make will gzip encode and decode our data while caching
