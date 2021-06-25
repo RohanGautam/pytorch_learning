@@ -1,5 +1,11 @@
 import argparse
 import sys
+from utils.log_config import logging
+
+log = logging.getLogger(__name__)
+
+log.setLevel(logging.INFO)
+log.setLevel(logging.DEBUG)
 
 
 class LunaTrainingApp:
@@ -19,3 +25,4 @@ class LunaTrainingApp:
 
 if __name__ == '__main__':
     LunaTrainingApp().main()
+    logging.info("heyyy")
