@@ -156,7 +156,7 @@ class LunaDataset(Dataset):
             assert self.candidate_info_list
 
     def __len__(self):
-        return len(self.candidateInfo_list)
+        return len(self.candidate_info_list)
 
     def __getitem__(self, ndx):
         candidateInfo_tup = self.candidate_info_list[ndx]

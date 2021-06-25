@@ -5,6 +5,7 @@ import argparse
 import datetime
 import math
 import torch
+from numpy import float32
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -68,15 +69,73 @@ class LunaTrainingApp:
         # eg: if the first one is consumed, then it loads the next batch for consumption in the next iteration
         train_dl = self.initTrainDataLoader()
         val_dl = self.initValDataLoader()
+        log.info("loaded data")
         for epoch_num in range(1, self.cli_args.epochs+1):
             train_metrics = self.doTraining(epoch_num, train_dl)
+            self.logMetrics(epoch_num, 'trn', train_metrics)
             val_metrics = self.doValidation(epoch_num, val_dl)
+            self.logMetrics(epoch_num, 'val', val_metrics)
+
+    def logMetrics(self, epoch_ndx, mode_str, metrics, classificationThreshold=0.5):
+        # masks are basically boolean arrays which can be used as an _index_ to filter out arrays
+        neg_label_masks = metrics[METRICS_LABEL_NDX] <= classificationThreshold
+        neg_pred_masks = metrics[METRICS_PRED_NDX] <= classificationThreshold
+        pos_label_masks = ~neg_label_masks
+        pos_pred_masks = ~neg_pred_masks
+
+        # collect some statistics
+        neg_count = int(neg_label_masks.sum())
+        pos_count = int(pos_label_masks.sum())
+        neg_correct = int((neg_label_masks & neg_pred_masks).sum())
+        pos_correct = int((pos_label_masks & pos_pred_masks).sum())
+
+        metrics_dict = {}
+        # computing a per class loss helps narrow down if one class is harder to classify
+        metrics_dict['loss/all'] = metrics[METRICS_LOSS_NDX].mean()
+        metrics_dict['loss/neg'] = metrics[neg_label_masks].mean()
+        metrics_dict['loss/pos'] = metrics[pos_label_masks].mean()
+
+        metrics_dict['correct/all'] = ((pos_correct+neg_correct) /
+                                       float32(metrics.shape(1))) * 100
+        metrics_dict['correct/neg'] = (neg_correct / float32(neg_count))*100
+        metrics_dict['correct/pos'] = (pos_correct / float32(pos_count))*100
+        log.info(
+            ("E{} {:8} {loss/all:.4f} loss, "
+             + "{correct/all:-5.1f}% correct, "
+             ).format(
+                epoch_ndx,
+                mode_str,
+                **metrics_dict,
+            )
+        )
+        log.info(
+            ("E{} {:8} {loss/neg:.4f} loss, "
+             + "{correct/neg:-5.1f}% correct ({neg_correct:} of {neg_count:})"
+             ).format(
+                epoch_ndx,
+                mode_str + '_neg',
+                neg_correct=neg_correct,
+                neg_count=neg_count,
+                **metrics_dict,
+            )
+        )
+        log.info(
+            ("E{} {:8} {loss/pos:.4f} loss, "
+             + "{correct/pos:-5.1f}% correct ({pos_correct:} of {pos_count:})"
+             ).format(
+                epoch_ndx,
+                mode_str + '_pos',
+                pos_correct=pos_correct,
+                pos_count=pos_count,
+                **metrics_dict,
+            )
+        )
 
     def doTraining(self, epoch_num, train_dl):
         self.model.train()  # set to training mode. things like batchnorm not used during evaluation
         metrics = torch.zeros(
             METRICS_SIZE,
-            len(train_dl.datset),
+            len(train_dl.dataset),
             device=self.device
         )
 
