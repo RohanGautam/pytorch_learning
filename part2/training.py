@@ -1,7 +1,18 @@
-import argparse
+# import argparse
 import sys
-from utils.log_config import logging
+import os
+import argparse
 
+PACKAGE_PARENT = '..'
+SCRIPT_DIR = os.path.dirname(os.path.realpath(
+    os.path.join(os.getcwd(), os.path.expanduser(__file__))))
+sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))
+
+from utils.log_config import logging  # noqa
+from utils.dsets import getCandidateInfo, getCt, LunaDataset  # noqa
+
+
+# print(sys.path)
 log = logging.getLogger(__name__)
 
 log.setLevel(logging.INFO)
@@ -20,9 +31,8 @@ class LunaTrainingApp:
         self.cli_args = parser.parse_args(sys_argv)
 
     def main(self):
-        print(f"Starting {type(self).__name__}, {self.cli_args}")
+        log.info(f"Starting {type(self).__name__}, {self.cli_args}")
 
 
 if __name__ == '__main__':
     LunaTrainingApp().main()
-    logging.info("heyyy")
