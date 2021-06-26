@@ -72,9 +72,9 @@ class LunaTrainingApp:
         log.info("loaded data")
         for epoch_num in range(1, self.cli_args.epochs+1):
             train_metrics = self.doTraining(epoch_num, train_dl)
-            self.logMetrics(epoch_num, 'trn', train_metrics)
-            val_metrics = self.doValidation(epoch_num, val_dl)
-            self.logMetrics(epoch_num, 'val', val_metrics)
+            # self.logMetrics(epoch_num, 'trn', train_metrics)
+            # val_metrics = self.doValidation(epoch_num, val_dl)
+            # self.logMetrics(epoch_num, 'val', val_metrics)
 
     def logMetrics(self, epoch_ndx, mode_str, metrics, classificationThreshold=0.5):
         # masks are basically boolean arrays which can be used as an _index_ to filter out arrays
@@ -173,6 +173,7 @@ class LunaTrainingApp:
         labels_gpu = input_matrices.to(self.device)
 
         # calling the instantiated `LunaModel` like this executes the foward pass
+        log.info(f"Input shape is f{inputs_gpu.shape}")
         logits, out_probability = self.model(inputs_gpu)
         # so we get a tensor which we average later on. This is for tracking metrics per sample
         loss_fn = nn.CrossEntropyLoss(reduction='none')
@@ -249,10 +250,10 @@ class LunaBlock(nn.Module):
         self.conv2 = nn.Conv3d(in_channels=conv_channels,
                                out_channels=conv_channels, kernel_size=3, padding=1, bias=True)
 
-    def foward(self, input_batch):
+    def forward(self, input_batch):
         out = F.relu(self.conv1(input_batch), inplace=True)
-        out = F.relu(self.conv2(input_batch), inplace=True)
-        F.max_pool3d(2, 2, out)
+        out = F.relu(self.conv2(out), inplace=True)
+        return F.max_pool3d(out, 2, 2)
 
 
 class LunaModel(nn.Module):
@@ -263,9 +264,9 @@ class LunaModel(nn.Module):
         # each block ends with a 2x2 pool, so resolution is reduces 16x by the end of the 4 blocks
         # ie, a 32x48x48 image becomes 2x3x3 with 8*8 =64 channels at the end
         self.block1 = LunaBlock(in_channels, conv_channels)
-        self.block2 = LunaBlock(in_channels, conv_channels*2)
-        self.block3 = LunaBlock(in_channels, conv_channels*4)
-        self.block4 = LunaBlock(in_channels, conv_channels*8)
+        self.block2 = LunaBlock(conv_channels, conv_channels*2)
+        self.block3 = LunaBlock(conv_channels*2, conv_channels*4)
+        self.block4 = LunaBlock(conv_channels*4, conv_channels*8)
 
         # two output features
         self.linear_fc = nn.Linear(2*3*3*64, 2)
@@ -274,7 +275,7 @@ class LunaModel(nn.Module):
         # here dim=1 points to the channel dimension, as the index 0 is the batch
         self.softmax = nn.Softmax(dim=1)
 
-    def foward(self, input_batch):
+    def forward(self, input_batch):
         out = self.batchnorm(input_batch)
 
         out = self.block1(out)
