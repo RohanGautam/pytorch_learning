@@ -5,7 +5,7 @@ import argparse
 import datetime
 import math
 import torch
-from numpy import float32
+import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
@@ -72,9 +72,9 @@ class LunaTrainingApp:
         log.info("loaded data")
         for epoch_num in range(1, self.cli_args.epochs+1):
             train_metrics = self.doTraining(epoch_num, train_dl)
-            # self.logMetrics(epoch_num, 'trn', train_metrics)
-            # val_metrics = self.doValidation(epoch_num, val_dl)
-            # self.logMetrics(epoch_num, 'val', val_metrics)
+            self.logMetrics(epoch_num, 'trn', train_metrics)
+            val_metrics = self.doValidation(epoch_num, val_dl)
+            self.logMetrics(epoch_num, 'val', val_metrics)
 
     def logMetrics(self, epoch_ndx, mode_str, metrics, classificationThreshold=0.5):
         # masks are basically boolean arrays which can be used as an _index_ to filter out arrays
@@ -92,13 +92,15 @@ class LunaTrainingApp:
         metrics_dict = {}
         # computing a per class loss helps narrow down if one class is harder to classify
         metrics_dict['loss/all'] = metrics[METRICS_LOSS_NDX].mean()
-        metrics_dict['loss/neg'] = metrics[neg_label_masks].mean()
-        metrics_dict['loss/pos'] = metrics[pos_label_masks].mean()
+        metrics_dict['loss/neg'] = metrics[METRICS_LOSS_NDX,
+                                           neg_label_masks].mean()
+        metrics_dict['loss/pos'] = metrics[METRICS_LOSS_NDX,
+                                           pos_label_masks].mean()
 
         metrics_dict['correct/all'] = ((pos_correct+neg_correct) /
-                                       float32(metrics.shape(1))) * 100
-        metrics_dict['correct/neg'] = (neg_correct / float32(neg_count))*100
-        metrics_dict['correct/pos'] = (pos_correct / float32(pos_count))*100
+                                       np.float32(metrics.shape[1])) * 100
+        metrics_dict['correct/neg'] = (neg_correct / np.float32(neg_count))*100
+        metrics_dict['correct/pos'] = (pos_correct / np.float32(pos_count))*100
         log.info(
             ("E{} {:8} {loss/all:.4f} loss, "
              + "{correct/all:-5.1f}% correct, "
@@ -169,16 +171,20 @@ class LunaTrainingApp:
         # at each index, we have numerous batches, hence the plural variable names.
         input_matrices, labels, _, _ = batch_tuple
 
-        inputs_gpu = input_matrices.to(self.device)
-        labels_gpu = input_matrices.to(self.device)
+        inputs_gpu = input_matrices.to(self.device, non_blocking=True)
+        labels_gpu = labels.to(self.device, non_blocking=True)
 
         # calling the instantiated `LunaModel` like this executes the foward pass
-        log.info(f"Input shape is f{inputs_gpu.shape}")
+        # log.debug(f"Input shape is f{inputs_gpu.shape}")
         logits, out_probability = self.model(inputs_gpu)
         # so we get a tensor which we average later on. This is for tracking metrics per sample
+        # log.debug(f"got the results")
         loss_fn = nn.CrossEntropyLoss(reduction='none')
+        # log.debug(f"labels: {labels_gpu[:, 1]}")
+        # log.debug(f"logits: {logits}")
+
         # [:,-1] is just getting the labels into a 1d form (i think)
-        loss = loss_fn(logits, labels[:, -1])
+        loss = loss_fn(logits, labels_gpu[:, 1])
 
         start_ndx = batch_idx * batch_size
         end_ndx = start_ndx + labels.size(0)
@@ -274,6 +280,8 @@ class LunaModel(nn.Module):
         # every slice per dimension will sum to 1
         # here dim=1 points to the channel dimension, as the index 0 is the batch
         self.softmax = nn.Softmax(dim=1)
+
+        self._init_weights()
 
     def forward(self, input_batch):
         out = self.batchnorm(input_batch)
