@@ -20,6 +20,7 @@ sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))
 # 'noqa' makes autopep8 ignore the line in formatting
 from utils.log_config import logging  # noqa
 from utils.dsets import getCandidateInfo, getCt, LunaDataset  # noqa
+from utils.custom_enumerate import enumerateWithEstimate  # noqa
 
 
 # print(sys.path)
@@ -112,7 +113,9 @@ class LunaTrainingApp:
         pos_correct = int((pos_label_masks & pos_pred_masks).sum())
 
         metrics_dict = {}
-        # computing a per class loss helps narrow down if one class is harder to classify
+        # computing a "per class loss" helps narrow down if one class is harder to classify
+        # Note that the slashes in our key names (such as 'loss/all') result in TensorBoard grouping the
+        # charts by the substring before the '/'
         metrics_dict['loss/all'] = metrics[METRICS_LOSS_NDX].mean()
         metrics_dict['loss/neg'] = metrics[METRICS_LOSS_NDX,
                                            neg_label_masks].mean()
@@ -174,7 +177,13 @@ class LunaTrainingApp:
             device=self.device
         )
 
-        for i, batch_tuple in enumerate(train_dl):
+        batch_iter = enumerateWithEstimate(
+            train_dl,
+            f"E{epoch_num} Training",
+            start_ndx=train_dl.num_workers,
+        )
+
+        for i, batch_tuple in batch_iter:
             self.optimizer.zero_grad()  # clear accumulated gradients
             loss_batch = self.computeBatchLoss(
                 i, batch_tuple, train_dl.batch_size, metrics)
@@ -192,8 +201,13 @@ class LunaTrainingApp:
                 len(val_dl.dataset),
                 device=self.device,
             )
+            batch_iter = enumerateWithEstimate(
+                val_dl,
+                f"E{epoch_ndx} Training",
+                start_ndx=val_dl.num_workers,
+            )
 
-            for batch_ndx, batch_tup in enumerate(val_dl):
+            for batch_ndx, batch_tup in batch_iter:
                 self.computeBatchLoss(
                     batch_ndx, batch_tup, val_dl.batch_size, valMetrics_g)
                 # no updates whatsoever boi, thats the whole point of a validation set
