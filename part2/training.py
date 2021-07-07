@@ -8,9 +8,9 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from tqdm import tqdm
 
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 PACKAGE_PARENT = '..'
 SCRIPT_DIR = os.path.dirname(os.path.realpath(
@@ -48,6 +48,10 @@ class LunaTrainingApp:
             '--batch-size', help='Number of workers for data loading', default=32, type=int)
         parser.add_argument(
             '--epochs', help='Number of workers for data loading', default=1, type=int)
+        parser.add_argument(
+            '--tb-prefix', help='Number of workers for data loading', default='ch11', type=str)
+        parser.add_argument(
+            '--comment', help='Number of workers for data loading', default='dlwpt', type=str)
         self.cli_args = parser.parse_args(sys_argv)
         self.time_str = datetime.datetime.now().strftime('%Y-%m-%d_%H.%M.%S')
         self.use_cuda = torch.cuda.is_available()
@@ -56,6 +60,9 @@ class LunaTrainingApp:
         self.optimizer = self.initOptimizer()
 
         self.totalTrainingSamples_count = 0
+
+        self.trn_writer = None
+        self.val_writer = None
 
     def main(self):
         '''We define the main training loop here!
@@ -76,7 +83,22 @@ class LunaTrainingApp:
             val_metrics = self.doValidation(epoch_num, val_dl)
             self.logMetrics(epoch_num, 'val', val_metrics)
 
+    def initTensorBoardWriters(self):
+        '''Summary writers write data into a logfile in the directory of your choice, in a format tensorboard can consume.
+
+        Dont want to create directories if metrics are not collected, so we initialize this in the `logMetrics()` function
+        '''
+        if self.trn_writer is None:
+            log_dir = os.path.join(
+                'runs', self.cli_args.tb_prefix, self.time_str)
+            # creating the SummaryWriter classes also create the needed log directories
+            self.trn_writer = SummaryWriter(
+                log_dir=log_dir+'-train-'+self.cli_args.comment)
+            self.val_writer = SummaryWriter(
+                log_dir=log_dir+'-val-'+self.cli_args.comment)
+
     def logMetrics(self, epoch_ndx, mode_str, metrics, classificationThreshold=0.5):
+        self.initTensorBoardWriters()
         # masks are basically boolean arrays which can be used as an _index_ to filter out arrays
         neg_label_masks = metrics[METRICS_LABEL_NDX] <= classificationThreshold
         neg_pred_masks = metrics[METRICS_PRED_NDX] <= classificationThreshold
@@ -132,6 +154,17 @@ class LunaTrainingApp:
                 **metrics_dict,
             )
         )
+
+        # tensorboard stuff
+        writer = None
+        if mode_str == 'trn':
+            writer = self.trn_writer
+        elif mode_str == 'val':
+            writer = self.val_writer
+
+        for key, val in metrics_dict.items():
+            # total trainingsamples is a "global step" parameter
+            writer.add_scalar(key, val, self.totalTrainingSamples_count)
 
     def doTraining(self, epoch_num, train_dl):
         self.model.train()  # set to training mode. things like batchnorm not used during evaluation

@@ -9,3 +9,11 @@ The data was obtained from [this repository](https://github.com/deep-learning-wi
 > Plus it can be tempting to spend time on infrastructure as a procrastination tactic, rather than digging into the hard work of making actual progress on your project. Don’t fall into that trap!
 
 - A good way to structure the main model is to have it work with a shell (and accept command line arguments), as well as allow it to be imported into a jupyter notebook.
+
+### setup in new env (at time of writing)
+
+```bash
+pip install torch torchvision matplotlib diskcache tensorflow jupyter nbconvert seaborn SimpleITK
+```
+
+- tensorboard didnt work, so i reinstalled everything in a new environment and its coolll
