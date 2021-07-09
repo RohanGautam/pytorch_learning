@@ -10,6 +10,8 @@ The data was obtained from [this repository](https://github.com/deep-learning-wi
 
 - A good way to structure the main model is to have it work with a shell (and accept command line arguments), as well as allow it to be imported into a jupyter notebook.
 
+- We’ve known that our model’s performance was garbage since chapter 11. If our metrics told us anything but that, itwould point to a fundamental flaw in the metrics!
+
 ### setup in new env (at time of writing)
 
 ```bash
