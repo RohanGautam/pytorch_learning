@@ -11,6 +11,7 @@ import copy
 import torch
 from utils.conversions import XyzTuple, xyz2irc
 from utils.custom_caching import getCache
+import random
 
 from torch.utils.data import Dataset
 
@@ -137,9 +138,19 @@ def getCtRawCandidate(series_uid, center_xyz, width_irc):
 
 
 class LunaDataset(Dataset):
-    def __init__(self, val_stride=0, is_validation_bool=None, series_uid=None):
+    def __init__(self, val_stride=0, is_validation_bool=None, series_uid=None, ratio_int=0):
         # copy so as to not affect the cache
         self.candidate_info_list = copy.copy(getCandidateInfo())
+        # if ratio_int is 2, means we'll have a 2:1 ratio of negative to positive
+        # if ratio_int is 1, means we'll have a 1:1 ratio of negative to positive(balanced)
+        # if zero there wont be any balancing, and we want this during validation
+        self.ratio_int = ratio_int
+
+        self.negative_list = [
+            x for x in self.candidate_info_list if not x.isNodule_bool]
+        self.positive_list = [
+            x for x in self.candidate_info_list if x.isNodule_bool]
+
         # an option to examine only one series uid
         if series_uid:
             self.candidate_info_list = [
@@ -156,11 +167,38 @@ class LunaDataset(Dataset):
             del self.candidate_info_list[::val_stride]
             assert self.candidate_info_list
 
+    def shuffle(self):
+        if self.ratio_int:
+            random.shuffle(self.negative_list)
+            random.shuffle(self.positive_list)
+
     def __len__(self):
-        return len(self.candidate_info_list)
+        # controls if manual class balancing will be done. if so, the exact number wont matter
+        if self.ratio_int:
+            return 5_000
+        else:
+            return len(self.candidate_info_list)
 
     def __getitem__(self, ndx):
-        candidateInfo_tup = self.candidate_info_list[ndx]
+        # we have to map out indices 0,1,...n as we recieve them
+        # into values returned from positive sample and negative sample list.
+        # ,ie, we have to map the indices into indices from the 2 seperate lists and ensure only one value is returned.
+
+        if self.ratio_int:
+            # some custom logic to map indices between positive and negative lists
+            pos_ndx = ndx//(self.ratio_int+1)
+            if ndx % (self.ratio_int+1) != 0:
+                neg_ndx = ndx-1-pos_ndx
+                neg_ndx %= len(self.negative_list)
+                candidateInfo_tup = self.negative_list[neg_ndx]
+            else:
+                pos_ndx %= len(self.positive_list)
+                candidateInfo_tup = self.positive_list[pos_ndx]
+
+        # if ratio_int is zero, it will be same as before
+        else:
+            candidateInfo_tup = self.candidate_info_list[ndx]
+
         width_irc = (32, 48, 48)
 
         candidate_a, center_irc = getCtRawCandidate(

@@ -252,7 +252,8 @@ class LunaTrainingApp:
     def initTrainDataLoader(self):
         train_ds = LunaDataset(
             val_stride=10,
-            is_validation_bool=False  # get the training data
+            is_validation_bool=False,  # get the training data
+            ratio_int=1
         )
         batch_size = self.cli_args.batch_size
         if self.use_cuda:
